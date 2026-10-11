@@ -13,6 +13,8 @@ import { TimerPage } from './pages/TimerPage';
 import { CalendarPage } from './pages/CalendarPage';
 import { StatsPage } from './pages/StatsPage';
 import { SettingsPage } from './pages/SettingsPage';
+import { supabase } from './supabase';
+import { AuthPage } from './pages/AuthPage';
 
 /** Repinta cada minuto para que "hoy", saludos y vencimientos cambien solos a medianoche. */
 function useMinuteTick() {
@@ -53,6 +55,53 @@ function Routes() {
 }
 
 export default function App() {
+  const [session, setSession] = useState<
+    Awaited<ReturnType<typeof supabase.auth.getSession>>['data']['session']
+  >(null);
+
+  const [checkingSession, setCheckingSession] = useState(true);
+
+  useEffect(() => {
+    let mounted = true;
+
+    supabase.auth.getSession().then(({ data, error }) => {
+      if (!mounted) return;
+
+      if (error) {
+        console.error('Error comprobando la sesión:', error.message);
+      }
+
+      setSession(data.session);
+      setCheckingSession(false);
+    });
+
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange((_event, session) => {
+      if (!mounted) return;
+
+      setSession(session);
+      setCheckingSession(false);
+    });
+
+    return () => {
+      mounted = false;
+      subscription.unsubscribe();
+    };
+  }, []);
+
+  if (checkingSession) {
+    return (
+      <div className="flex min-h-dvh items-center justify-center">
+        <div className="h-8 w-8 animate-spin rounded-full border-2 border-primary border-t-transparent" />
+      </div>
+    );
+  }
+
+  if (!session) {
+    return <AuthPage />;
+  }
+
   return (
     <ToastProvider>
       <AppStoreProvider>
